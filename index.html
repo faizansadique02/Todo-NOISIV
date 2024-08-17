@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple To-Do App</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="todo-container">
+        <h2 class="title">To-Do List</h2>
+        <ul id="task-list"></ul>
+        <div class="buttons">
+            <button id="add-task-btn">Add Task</button>
+            <button id="add-user-btn">Add User</button>
+        </div>
+    </div>
+
+    <div id="user-dialog" class="dialog">
+        <div class="dialog-content">
+            <h3>Add New User</h3>
+            <label for="new-user">Enter Username:</label>
+            <input type="text" id="new-user" />
+            <button id="save-user-btn">Save</button>
+            <button id="cancel-btn">Cancel</button>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
