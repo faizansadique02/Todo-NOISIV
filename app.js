@@ -1,79 +1,105 @@
-document.addEventListener('DOMContentLoaded', () => {
-    const taskList = document.getElementById('task-list');
-    const addTaskBtn = document.getElementById('add-task-btn');
-    const addUserBtn = document.getElementById('add-user-btn');
-    const userDialog = document.getElementById('user-dialog');
-    const saveUserBtn = document.getElementById('save-user-btn');
-    const cancelBtn = document.getElementById('cancel-btn');
-    const newUserInput = document.getElementById('new-user');
+const http = require('http');
+const fs = require('fs');
+const url = require('url');
+const { v4: uuidv4 } = require('uuid'); // Unique ID for each breed
 
-    let users = [];
+const PORT = 3000;
 
-    // Load users from JSON file
-    fetch('users.json')
-        .then(response => response.json())
-        .then(data => {
-            users = data;
+// Utility function to read dog breeds from JSON file
+function readBreeds(callback) {
+    fs.readFile('dogs.json', 'utf8', (err, data) => {
+        if (err) throw err;
+        callback(JSON.parse(data));
+    });
+}
+
+// Utility function to write breeds to the JSON file
+function writeBreeds(breeds, callback) {
+    fs.writeFile('dogs.json', JSON.stringify(breeds, null, 2), 'utf8', err => {
+        if (err) throw err;
+        callback();
+    });
+}
+
+const server = http.createServer((req, res) => {
+    const parsedUrl = url.parse(req.url, true);
+    const pathname = parsedUrl.pathname;
+
+    if (pathname === '/breeds' && req.method === 'GET') {
+        // READ - Get all breeds
+        readBreeds(breeds => {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(breeds));
         });
 
-    // Add Task
-    addTaskBtn.addEventListener('click', () => {
-        const taskItem = document.createElement('li');
-        taskItem.className = 'task-item';
-
-        const taskNameInput = document.createElement('input');
-        taskNameInput.type = 'text';
-        taskNameInput.value = `Task ${taskList.children.length + 1}`;
-
-        const userDropdown = document.createElement('select');
-        updateDropdown(userDropdown);
-
-        taskItem.appendChild(taskNameInput);
-        taskItem.appendChild(userDropdown);
-        taskList.appendChild(taskItem);
-    });
-
-    // Add User
-    addUserBtn.addEventListener('click', () => {
-        userDialog.style.display = 'flex';
-    });
-
-    saveUserBtn.addEventListener('click', () => {
-        const newUser = newUserInput.value.trim();
-        if (newUser) {
-            users.push(newUser);
-            saveUsers();
-            closeDialog();
-        }
-    });
-
-    cancelBtn.addEventListener('click', closeDialog);
-
-    function closeDialog() {
-        userDialog.style.display = 'none';
-        newUserInput.value = '';
-    }
-
-    function updateDropdown(dropdown) {
-        dropdown.innerHTML = '';
-        users.forEach(user => {
-            const option = document.createElement('option');
-            option.value = user;
-            option.textContent = user;
-            dropdown.appendChild(option);
+    } else if (pathname === '/breed' && req.method === 'POST') {
+        // CREATE - Add a new breed
+        let body = '';
+        req.on('data', chunk => {
+            body += chunk.toString();
         });
-    }
+        req.on('end', () => {
+            const newBreed = JSON.parse(body);
+            newBreed.id = uuidv4(); // Assign a unique ID
 
-    function saveUsers() {
-        fetch('users.json', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(users)
-        })
-        .then(() => {
-            document.querySelectorAll('select').forEach(updateDropdown);
+            readBreeds(breeds => {
+                breeds.push(newBreed);
+                writeBreeds(breeds, () => {
+                    res.writeHead(201, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify(newBreed));
+                });
+            });
         });
+
+    } else if (pathname.startsWith('/breed/') && req.method === 'PUT') {
+        // UPDATE - Update an existing breed by ID
+        const id = pathname.split('/')[2];
+        let body = '';
+        req.on('data', chunk => {
+            body += chunk.toString();
+        });
+        req.on('end', () => {
+            const updatedBreed = JSON.parse(body);
+
+            readBreeds(breeds => {
+                const index = breeds.findIndex(b => b.id === id);
+                if (index !== -1) {
+                    breeds[index] = { ...breeds[index], ...updatedBreed };
+                    writeBreeds(breeds, () => {
+                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify(breeds[index]));
+                    });
+                } else {
+                    res.writeHead(404, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ message: 'Breed not found' }));
+                }
+            });
+        });
+
+    } else if (pathname.startsWith('/breed/') && req.method === 'DELETE') {
+        // DELETE - Remove a breed by ID
+        const id = pathname.split('/')[2];
+
+        readBreeds(breeds => {
+            const filteredBreeds = breeds.filter(b => b.id !== id);
+            if (filteredBreeds.length !== breeds.length) {
+                writeBreeds(filteredBreeds, () => {
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ message: 'Breed deleted' }));
+                });
+            } else {
+                res.writeHead(404, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ message: 'Breed not found' }));
+            }
+        });
+
+    } else {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ message: 'Route not found' }));
     }
+});
+
+// Start server
+server.listen(PORT, () => {
+    console.log('Server running on http://localhost:${PORT}');
 });
